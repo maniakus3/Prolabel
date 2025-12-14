@@ -333,6 +333,20 @@ const LabelConfigurator: React.FC<LabelConfiguratorProps> = ({ categoryId = 'ety
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Dynamic Preview Sizing
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [previewRect, setPreviewRect] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    if (!previewRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect;
+      setPreviewRect({ width, height });
+    });
+    observer.observe(previewRef.current);
+    return () => observer.disconnect();
+  }, []);
+
   // Update preview when files change (show first image found)
   useEffect(() => {
     if (config.printType !== 'print') {
@@ -439,20 +453,22 @@ const LabelConfigurator: React.FC<LabelConfiguratorProps> = ({ categoryId = 'ety
   const wInput = Math.abs(parseFloat(config.width)) || 100;
   const hInput = config.shape === 'circle' ? wInput : (Math.abs(parseFloat(config.height)) || 100);
   
-  // Bounding box max constants
-  const MAX_W = 600; 
-  const MAX_H = 650; 
+  // Calculate dynamic constraints based on container size
+  const PADDING = 64; // p-8 x 2 = 64px
+  const maxW = previewRect.width > PADDING ? previewRect.width - PADDING : 400;
+  const maxH = previewRect.height > PADDING ? previewRect.height - PADDING : 400;
+
   const aspectRatio = wInput / hInput;
   
   let finalW, finalH;
 
   // Fit logic
-  if (wInput / MAX_W > hInput / MAX_H) {
-    finalW = MAX_W;
-    finalH = MAX_W / aspectRatio;
+  if (wInput / maxW > hInput / maxH) {
+    finalW = maxW;
+    finalH = maxW / aspectRatio;
   } else {
-    finalH = MAX_H;
-    finalW = MAX_H * aspectRatio;
+    finalH = maxH;
+    finalW = maxH * aspectRatio;
   }
 
   // Calculate dynamic border radius for rectangle
@@ -1032,7 +1048,10 @@ const LabelConfigurator: React.FC<LabelConfiguratorProps> = ({ categoryId = 'ety
           </div>
 
           {/* MIDDLE/RIGHT COLUMN: Mockup/Preview */}
-          <div className="w-full lg:w-2/3 bg-gray-100 flex flex-col items-center justify-center p-8 relative overflow-hidden border border-gray-200 min-h-[500px]">
+          <div 
+            ref={previewRef}
+            className="w-full lg:w-2/3 bg-gray-100 flex flex-col items-center justify-center p-8 relative overflow-hidden border border-gray-200 min-h-[500px]"
+          >
             {/* Background pattern */}
             <div className="absolute inset-0 opacity-5" 
                  style={{ backgroundImage: 'radial-gradient(#475569 1px, transparent 1px)', backgroundSize: '20px 20px' }}>
@@ -1055,7 +1074,7 @@ const LabelConfigurator: React.FC<LabelConfiguratorProps> = ({ categoryId = 'ety
                  </div>
                </div>
             ) : (
-              <div className="relative group" style={wrapperStyle}>
+              <div className="relative group transition-all duration-300 ease-out" style={wrapperStyle}>
                 
                 {/* Width Dimension Indicator */}
                 <div className="absolute -top-8 left-0 w-full flex items-end justify-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300">

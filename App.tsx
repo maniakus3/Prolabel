@@ -4,16 +4,24 @@ import Hero from './components/Hero';
 import CategorySelector from './components/CategorySelector';
 import DetailsSection from './components/DetailsSection';
 import LabelConfigurator from './components/LabelConfigurator';
+import StickerConfigurator from './components/StickerConfigurator';
+import Designer from './components/Designer'; // Import Designer
 import AiAdvisor from './components/AiAdvisor';
 import { PROLABEL_DATA } from './data';
-import { MainCategory } from './types';
+import { MainCategory, EditorConfig } from './types';
 import { ArrowUp } from 'lucide-react';
 
 const App: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState<MainCategory>(PROLABEL_DATA[0]);
+  const [editorConfig, setEditorConfig] = useState<EditorConfig | null>(null);
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCategorySelect = (category: MainCategory) => {
+    setActiveCategory(category);
+    setEditorConfig(null); // Reset designer when changing categories
   };
 
   return (
@@ -21,37 +29,60 @@ const App: React.FC = () => {
       <Header />
       
       <main className="flex-grow">
+        {/* Hero and CategorySelector are now ALWAYS visible */}
         <Hero 
           categories={PROLABEL_DATA} 
           activeCategory={activeCategory} 
-          onSelectCategory={setActiveCategory}
+          onSelectCategory={handleCategorySelect}
         />
         
         <CategorySelector 
           categories={PROLABEL_DATA}
           activeCategory={activeCategory}
-          onSelectCategory={setActiveCategory}
+          onSelectCategory={handleCategorySelect}
         />
+
+        {/* Dynamic Content Area: Switches between Configurator/Details AND Designer */}
+        <div id="main-content-area" className="scroll-mt-24">
+          {editorConfig ? (
+            <div className="container mx-auto px-4 py-8">
+              <Designer 
+                config={editorConfig} 
+                onBack={() => setEditorConfig(null)} 
+              />
+            </div>
+          ) : (
+            <>
+              {['etykiety', 'kalki'].includes(activeCategory.id) ? (
+                <LabelConfigurator categoryId={activeCategory.id} />
+              ) : activeCategory.id === 'naklejki' ? (
+                <StickerConfigurator onConfirm={(config) => {
+                  setEditorConfig(config);
+                  // Optional: scroll to designer start if needed
+                  document.getElementById('main-content-area')?.scrollIntoView({ behavior: 'smooth' });
+                }} />
+              ) : (
+                <DetailsSection category={activeCategory} />
+              )}
+            </>
+          )}
+        </div>
         
-        {['etykiety', 'kalki'].includes(activeCategory.id) ? (
-          <LabelConfigurator categoryId={activeCategory.id} />
-        ) : (
-          <DetailsSection category={activeCategory} />
+        {/* Contact Teaser - Visible only when not designing to reduce distraction */}
+        {!editorConfig && (
+          <section className="bg-brand-dark text-white py-16">
+            <div className="container mx-auto px-4 text-center">
+                <h2 className="text-3xl font-bold mb-4">Potrzebujesz indywidualnej wyceny?</h2>
+                <p className="text-gray-400 mb-8 max-w-2xl mx-auto">
+                  Skontaktuj się z nami, aby omówić szczegóły Twojego projektu. 
+                  Oferujemy profesjonalne doradztwo i konkurencyjne ceny.
+                </p>
+                <button className="bg-white text-brand-dark px-8 py-3 rounded-lg font-bold hover:bg-gray-100 transition shadow-lg transform hover:-translate-y-1">
+                  Skontaktuj się z nami
+                </button>
+            </div>
+          </section>
         )}
-        
-        {/* Contact Teaser */}
-        <section className="bg-brand-dark text-white py-16">
-          <div className="container mx-auto px-4 text-center">
-             <h2 className="text-3xl font-bold mb-4">Potrzebujesz indywidualnej wyceny?</h2>
-             <p className="text-gray-400 mb-8 max-w-2xl mx-auto">
-               Skontaktuj się z nami, aby omówić szczegóły Twojego projektu. 
-               Oferujemy profesjonalne doradztwo i konkurencyjne ceny.
-             </p>
-             <button className="bg-white text-brand-dark px-8 py-3 rounded-lg font-bold hover:bg-gray-100 transition shadow-lg transform hover:-translate-y-1">
-               Skontaktuj się z nami
-             </button>
-          </div>
-        </section>
       </main>
 
       <footer className="bg-slate-950 text-slate-500 py-10 border-t border-slate-800">
