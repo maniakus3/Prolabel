@@ -5,15 +5,22 @@ import CategorySelector from './components/CategorySelector';
 import DetailsSection from './components/DetailsSection';
 import LabelConfigurator from './components/LabelConfigurator';
 import StickerConfigurator from './components/StickerConfigurator';
-import Designer from './components/Designer'; // Import Designer
+import Designer from './components/Designer';
 import AiAdvisor from './components/AiAdvisor';
+import CartDrawer from './components/CartDrawer';
+import Checkout from './components/Checkout';
 import { PROLABEL_DATA } from './data';
-import { MainCategory, EditorConfig } from './types';
+import { MainCategory, EditorConfig, CartItem, CanvasElement } from './types';
 import { ArrowUp } from 'lucide-react';
 
 const App: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState<MainCategory>(PROLABEL_DATA[0]);
   const [editorConfig, setEditorConfig] = useState<EditorConfig | null>(null);
+  
+  // Cart State
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -22,68 +29,125 @@ const App: React.FC = () => {
   const handleCategorySelect = (category: MainCategory) => {
     setActiveCategory(category);
     setEditorConfig(null); // Reset designer when changing categories
+    setIsCheckoutOpen(false); // Ensure we leave checkout when navigating
+  };
+
+  const handleSaveProject = (elements: CanvasElement[], previewUrl: string) => {
+    if (editorConfig) {
+      const newItem: CartItem = {
+        id: Date.now().toString(),
+        config: editorConfig,
+        elements: elements,
+        previewUrl: previewUrl,
+        timestamp: Date.now()
+      };
+      
+      setCart(prev => [...prev, newItem]);
+      setEditorConfig(null); // Close designer
+      setIsCartOpen(true); // Open cart drawer
+      
+      // Optional: Scroll to top or show success message
+      scrollToTop();
+    }
+  };
+
+  const handleRemoveFromCart = (id: string) => {
+    setCart(prev => prev.filter(item => item.id !== id));
+  };
+
+  const handleProceedToCheckout = () => {
+    setIsCartOpen(false);
+    setIsCheckoutOpen(true);
+    scrollToTop();
+  };
+
+  const handlePlaceOrder = (orderData: any) => {
+    console.log("Order Placed:", orderData);
+    alert(`Dziękujemy za zamówienie! ID: ${Date.now()}. Sprawdź maila.`);
+    setCart([]); // Clear cart
+    setIsCheckoutOpen(false); // Go back to home
   };
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 font-sans text-slate-800">
-      <Header />
+      <Header 
+        cartCount={cart.length} 
+        onOpenCart={() => setIsCartOpen(true)} 
+      />
       
-      <main className="flex-grow">
-        {/* Hero and CategorySelector are now ALWAYS visible */}
-        <Hero 
-          categories={PROLABEL_DATA} 
-          activeCategory={activeCategory} 
-          onSelectCategory={handleCategorySelect}
+      <CartDrawer 
+        isOpen={isCartOpen}
+        onClose={() => setIsCartOpen(false)}
+        cartItems={cart}
+        onRemoveItem={handleRemoveFromCart}
+        onCheckout={handleProceedToCheckout}
+      />
+      
+      {isCheckoutOpen ? (
+        <Checkout 
+          cart={cart}
+          onBack={() => setIsCheckoutOpen(false)}
+          onPlaceOrder={handlePlaceOrder}
         />
-        
-        <CategorySelector 
-          categories={PROLABEL_DATA}
-          activeCategory={activeCategory}
-          onSelectCategory={handleCategorySelect}
-        />
+      ) : (
+        <main className="flex-grow">
+          {/* Hero and CategorySelector are now ALWAYS visible */}
+          <Hero 
+            categories={PROLABEL_DATA} 
+            activeCategory={activeCategory} 
+            onSelectCategory={handleCategorySelect}
+          />
+          
+          <CategorySelector 
+            categories={PROLABEL_DATA}
+            activeCategory={activeCategory}
+            onSelectCategory={handleCategorySelect}
+          />
 
-        {/* Dynamic Content Area: Switches between Configurator/Details AND Designer */}
-        <div id="main-content-area" className="scroll-mt-24">
-          {editorConfig ? (
-            <div className="container mx-auto px-4 py-8">
-              <Designer 
-                config={editorConfig} 
-                onBack={() => setEditorConfig(null)} 
-              />
-            </div>
-          ) : (
-            <>
-              {['etykiety', 'kalki'].includes(activeCategory.id) ? (
-                <LabelConfigurator categoryId={activeCategory.id} />
-              ) : activeCategory.id === 'naklejki' ? (
-                <StickerConfigurator onConfirm={(config) => {
-                  setEditorConfig(config);
-                  // Optional: scroll to designer start if needed
-                  document.getElementById('main-content-area')?.scrollIntoView({ behavior: 'smooth' });
-                }} />
-              ) : (
-                <DetailsSection category={activeCategory} />
-              )}
-            </>
+          {/* Dynamic Content Area: Switches between Configurator/Details AND Designer */}
+          <div id="main-content-area" className="scroll-mt-24">
+            {editorConfig ? (
+              <div className="container mx-auto px-4 py-8">
+                <Designer 
+                  config={editorConfig} 
+                  onBack={() => setEditorConfig(null)} 
+                  onSave={handleSaveProject}
+                />
+              </div>
+            ) : (
+              <>
+                {['etykiety', 'kalki'].includes(activeCategory.id) ? (
+                  <LabelConfigurator categoryId={activeCategory.id} />
+                ) : activeCategory.id === 'naklejki' ? (
+                  <StickerConfigurator onConfirm={(config) => {
+                    setEditorConfig(config);
+                    // Optional: scroll to designer start if needed
+                    document.getElementById('main-content-area')?.scrollIntoView({ behavior: 'smooth' });
+                  }} />
+                ) : (
+                  <DetailsSection category={activeCategory} />
+                )}
+              </>
+            )}
+          </div>
+          
+          {/* Contact Teaser - Visible only when not designing to reduce distraction */}
+          {!editorConfig && (
+            <section className="bg-brand-dark text-white py-16">
+              <div className="container mx-auto px-4 text-center">
+                  <h2 className="text-3xl font-bold mb-4">Potrzebujesz indywidualnej wyceny?</h2>
+                  <p className="text-gray-400 mb-8 max-w-2xl mx-auto">
+                    Skontaktuj się z nami, aby omówić szczegóły Twojego projektu. 
+                    Oferujemy profesjonalne doradztwo i konkurencyjne ceny.
+                  </p>
+                  <button className="bg-white text-brand-dark px-8 py-3 rounded-lg font-bold hover:bg-gray-100 transition shadow-lg transform hover:-translate-y-1">
+                    Skontaktuj się z nami
+                  </button>
+              </div>
+            </section>
           )}
-        </div>
-        
-        {/* Contact Teaser - Visible only when not designing to reduce distraction */}
-        {!editorConfig && (
-          <section className="bg-brand-dark text-white py-16">
-            <div className="container mx-auto px-4 text-center">
-                <h2 className="text-3xl font-bold mb-4">Potrzebujesz indywidualnej wyceny?</h2>
-                <p className="text-gray-400 mb-8 max-w-2xl mx-auto">
-                  Skontaktuj się z nami, aby omówić szczegóły Twojego projektu. 
-                  Oferujemy profesjonalne doradztwo i konkurencyjne ceny.
-                </p>
-                <button className="bg-white text-brand-dark px-8 py-3 rounded-lg font-bold hover:bg-gray-100 transition shadow-lg transform hover:-translate-y-1">
-                  Skontaktuj się z nami
-                </button>
-            </div>
-          </section>
-        )}
-      </main>
+        </main>
+      )}
 
       <footer className="bg-slate-950 text-slate-500 py-10 border-t border-slate-800">
         <div className="container mx-auto px-4 text-center md:text-left grid grid-cols-1 md:grid-cols-3 gap-8">

@@ -28,15 +28,17 @@ export interface ChatMessage {
 
 export interface CanvasElement {
   id: string;
-  type: 'text' | 'image' | 'pdf';
-  content: string; // Text string, Image URL, or Filename for PDF
+  type: 'text' | 'image' | 'pdf' | 'qrcode' | 'barcode' | 'table' | 'shape';
+  content: string; // Text string, Image URL, Filename for PDF, or Raw Data for Barcode, or Shape Type
   x: number;
   y: number;
   width?: number;
   height?: number;
   fontSize?: number;
   fontFamily?: string; 
-  color?: string;
+  color?: string; // Fill color (can be 'transparent')
+  stroke?: string; // Stroke color
+  strokeWidth?: number; // Stroke width in mm
   textShadow?: string; 
   rotation?: number;
   // Typography additions
@@ -44,6 +46,16 @@ export interface CanvasElement {
   fontStyle?: string;
   textDecoration?: string;
   textAlign?: 'left' | 'center' | 'right';
+  // Barcode specific
+  barcodeFormat?: 'CODE128' | 'EAN13';
+  // Table specific
+  tableRows?: number;
+  tableCols?: number;
+  tableBorderWidth?: number;
+  // Shape specific
+  shapeType?: 'rect' | 'circle' | 'triangle' | 'star' | 'heart' | 'hexagon';
+  // Internal Render Cache
+  _renderUrl?: string; 
 }
 
 export interface EditorConfig {
@@ -55,4 +67,15 @@ export interface EditorConfig {
   quantity: number;
   totalPrice: number;
   description: string;
+  productName?: string; // Main product name (e.g., "Naklejki samoprzylepne")
+}
+
+// --- CART TYPES ---
+
+export interface CartItem {
+  id: string;
+  config: EditorConfig;
+  elements: CanvasElement[]; // Save the design elements
+  previewUrl?: string; // Optional preview
+  timestamp: number;
 }

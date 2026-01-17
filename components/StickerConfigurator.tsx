@@ -9,6 +9,8 @@ import { EditorConfig } from '../types';
 // Stała potrzebna do wycinania kształtu serca (opcjonalnie, jeśli używasz clip-path w CSS)
 const HEART_PATH_NORMALIZED = "M0.5072 0.9996 c0.9505,-0.6447 0.2837,-1.2949 -0.0015,-0.8556 -0.3168,-0.4432 -0.9598,0.2227 0.0015,0.8556 Z";
 
+const PRESET_QUANTITIES = [50, 100, 250, 500, 1000, 2500, 5000];
+
 interface StickerConfiguratorProps {
     onConfirm?: (config: EditorConfig) => void;
 }
@@ -32,60 +34,14 @@ const StickerConfigurator: React.FC<StickerConfiguratorProps> = ({ onConfirm }) 
     const [isSendingCustom, setIsSendingCustom] = useState(false);
     const [customRequestSuccess, setCustomRequestSuccess] = useState(false);
 
-    // --- STAŁE I LOGIKA OBLICZEŃ ---
-    
-    // Dynamiczna szerokość plotera: 980mm dla 'void' (plombowa), 1320mm dla reszty
-    const PLOTTER_WIDTH_MM = material === 'void' ? 980 : 1320;
-    const GAP_MM = 2; // Odstęp między użytkami
-    const MIN_ORDER_AREA_M2 = 1.0; // Minimalne zamówienie 1m2
-    const PRESET_QUANTITIES = [1000, 2500, 5000, 7500, 10000];
-
-    // Obliczenia powierzchni
-    const singleAreaM2 = (width * height) / 1000000;
-
-    // Obliczanie minimalnej ilości (1m2 + optymalizacja rzędów na ploterze)
-    let minQuantity = 0;
-    if (width > 0 && height > 0 && singleAreaM2 > 0) {
-        const itemWidthWithGap = width + GAP_MM;
-        // Oblicz ile sztuk wchodzi w rzędzie na szerokości plotera
-        const itemsPerRow = Math.max(1, Math.floor(PLOTTER_WIDTH_MM / itemWidthWithGap));
-        
-        // Oblicz minimalną ilość sztuk aby osiągnąć 1m2
-        const minQtyByArea = Math.ceil(MIN_ORDER_AREA_M2 / singleAreaM2);
-
-        // Optymalizacja do pełnych rzędów (aby nie marnować materiału na szerokości)
-        const rowsNeeded = Math.ceil(minQtyByArea / itemsPerRow);
-        
-        // Finalna ilość: pełne rzędy * ilość w rzędzie
-        minQuantity = rowsNeeded * itemsPerRow;
-    }
-
-    // Automatyczne przeliczanie i proponowanie minimalnej ilości przy zmianie wymiarów/materiału
-    useEffect(() => {
-        if (minQuantity > 0) {
-            // Zawsze proponuj ilość odpowiadającą minimalnemu zamówieniu (1m2) przy zmianie parametrów
-            setQuantity(minQuantity);
-        }
-    }, [minQuantity]);
-
-    // Obliczenia walidacyjne
-    const rawRatio = width && height ? width / height : 0;
-    const isRatioOk = rawRatio >= 0.2 && rawRatio <= 5.0; // Czy proporcje są drukowalne standardowo
-    const isSizeOk = width >= 10 && height >= 10; // Min. wymiar 10mm
-    const isCustomShape = shape === 'custom';
-    
-    const totalAreaM2 = singleAreaM2 * quantity;
-    const isBelowMinimum = quantity < minQuantity;
-    const missingPieces = Math.max(0, minQuantity - quantity);
-
-    // Decyzja który przycisk pokazać (Standard vs Zapytanie)
-    const canProceedStandard = isRatioOk && isSizeOk && !isCustomShape && quantity > 0 && !isBelowMinimum;
-    const canSendCustomRequest = ((!isRatioOk && isSizeOk) || isCustomShape) && contactEmail.includes('@') && contactFile !== null;
-
-    const aspectRatioDisplay = rawRatio > 0 ? rawRatio.toFixed(2) : '-';
+    // --- STAŁE KONFIGURACYJNE ---
+    const PLOTTER_WIDTH_MM = 1320;
+    const GAP_MM = 2; 
+    const MIN_ORDER_AREA_M2 = 1.0; 
+    const MIN_ORDER_PRICE_NETTO = 85.00;
+    const MIN_ORDER_PRICE_GROSS = MIN_ORDER_PRICE_NETTO * 1.23;
 
     // --- DANE MATERIAŁOWE I CENNIK ---
-    
     const shapes = [
         { 
             id: 'rect', 
@@ -108,14 +64,14 @@ const StickerConfigurator: React.FC<StickerConfiguratorProps> = ({ onConfirm }) 
             id: 'white-gloss', 
             name: 'Folia biała błyszcząca', 
             style: 'bg-white shadow-inner bg-[linear-gradient(135deg,rgba(255,255,255,1)_0%,rgba(240,240,240,1)_50%,rgba(255,255,255,1)_100%)]',
-            pricePerM2: 50.0, 
+            pricePerM2: 55.35, 
             isPopular: true
         },
         { 
             id: 'white-matte', 
             name: 'Folia biała matowa', 
             style: 'bg-gray-100',
-            pricePerM2: 50.0 
+            pricePerM2: 55.35 
         },
         { 
             id: 'strong-glue', 
@@ -133,25 +89,25 @@ const StickerConfigurator: React.FC<StickerConfiguratorProps> = ({ onConfirm }) 
             id: 'silver', 
             name: 'Folia srebrna', 
             style: 'bg-[linear-gradient(135deg,#e0e0e0_0%,#ffffff_50%,#b0b0b0_100%)]',
-            pricePerM2: 147.6 // 120 zł netto
+            pricePerM2: 147.6 
         },
         { 
             id: 'gold', 
             name: 'Folia złota', 
             style: 'bg-[linear-gradient(135deg,#bf953f_0%,#fcf6ba_50%,#b38728_100%)]',
-            pricePerM2: 147.6 // 120 zł netto
+            pricePerM2: 147.6 
         },
         { 
             id: 'holographic', 
             name: 'Folia holograficzna', 
             style: 'bg-[linear-gradient(45deg,#ff9a9e_0%,#fad0c4_99%,#fad0c4_100%)] bg-blend-overlay',
-            pricePerM2: 147.6 // 120 zł netto
+            pricePerM2: 147.6 
         },
         { 
             id: 'glitter', 
             name: 'Folia brokatowa', 
             style: 'bg-gray-200 bg-[radial-gradient(circle,rgba(255,255,255,0.8)_1px,transparent_1px)] [background-size:4px_4px]',
-            pricePerM2: 147.6 // 120 zł netto
+            pricePerM2: 147.6 
         },
         { 
             id: 'eco', 
@@ -163,7 +119,7 @@ const StickerConfigurator: React.FC<StickerConfiguratorProps> = ({ onConfirm }) 
             id: 'void', 
             name: 'Folia plombowa krusząca', 
             style: 'bg-white border border-red-200',
-            pricePerM2: 344.4 // 280 zł netto
+            pricePerM2: 344.4 
         },
     ];
 
@@ -183,8 +139,59 @@ const StickerConfigurator: React.FC<StickerConfiguratorProps> = ({ onConfirm }) 
     const selectedLam = laminates.find(l => l.id === laminate)!;
     const selectedConf = confections.find(c => c.id === confection)!;
 
-    // --- OBLICZANIE CENY KOŃCOWEJ ---
-    let baseProductionPrice = totalAreaM2 * (selectedMat.pricePerM2 + selectedLam.pricePerM2 + selectedConf.pricePerM2);
+
+    // --- LOGIKA OBLICZEŃ MINIMALNEJ ILOŚCI I CENY ---
+
+    // 1. Obliczenia powierzchni pojedynczej sztuki
+    const productionWidth = width + GAP_MM;
+    const productionHeight = height + GAP_MM;
+    const singleAreaM2 = (productionWidth * productionHeight) / 1000000;
+
+    // 2. Cena bazowa za m2 (z uwzględnieniem zwyżki dla małych wymiarów)
+    const SMALL_WIDTH_LIMIT = 50;
+    const SMALL_WIDTH_MIN_PRICE_GROSS = 120 * 1.23; 
+    
+    let appliedMaterialPricePerM2 = selectedMat.pricePerM2;
+    if (width <= SMALL_WIDTH_LIMIT) {
+        appliedMaterialPricePerM2 = Math.max(appliedMaterialPricePerM2, SMALL_WIDTH_MIN_PRICE_GROSS);
+    }
+    
+    // Koszt produkcji 1m2 (materiał + dodatki)
+    const pricePerProductionM2 = appliedMaterialPricePerM2 + selectedLam.pricePerM2 + selectedConf.pricePerM2;
+
+    // 3. Obliczenie minimalnej ilości (Area OR Price)
+    let minQuantity = 0;
+    if (width > 0 && height > 0 && singleAreaM2 > 0) {
+        // Ile sztuk wchodzi w rzędzie na szerokości plotera
+        const itemsPerRow = Math.max(1, Math.floor(PLOTTER_WIDTH_MM / productionWidth));
+        
+        // A. Warunek Powierzchni: Min. 1m2
+        const minQtyByArea = Math.ceil(MIN_ORDER_AREA_M2 / singleAreaM2);
+
+        // B. Warunek Ceny: Min. 85 PLN Netto
+        const singleStickerCost = singleAreaM2 * pricePerProductionM2;
+        const minQtyByPrice = singleStickerCost > 0 ? Math.ceil(MIN_ORDER_PRICE_GROSS / singleStickerCost) : 0;
+
+        // Wybieramy większą wymaganą ilość
+        const baseMinQty = Math.max(minQtyByArea, minQtyByPrice);
+
+        // Optymalizacja do pełnych rzędów
+        const rowsNeeded = Math.ceil(baseMinQty / itemsPerRow);
+        
+        minQuantity = rowsNeeded * itemsPerRow;
+    }
+
+    // Automatyczne przeliczanie i proponowanie minimalnej ilości
+    useEffect(() => {
+        if (minQuantity > 0) {
+            setQuantity(minQuantity);
+        }
+    }, [minQuantity, material, laminate, confection, width, height]); // Zależności: zmiana parametrów wymusza przeliczenie minimum
+
+    // --- KALKULACJA CENY KOŃCOWEJ DLA WYBRANEJ ILOŚCI ---
+
+    const totalAreaM2 = singleAreaM2 * quantity;
+    let baseProductionPrice = totalAreaM2 * pricePerProductionM2;
     let totalPrice = baseProductionPrice;
 
     // Rabaty ilościowe
@@ -192,7 +199,27 @@ const StickerConfigurator: React.FC<StickerConfiguratorProps> = ({ onConfirm }) 
     if (quantity >= 1000) totalPrice *= 0.90;
     if (quantity >= 5000) totalPrice *= 0.85;
 
+    // Zabezpieczenie minimalnej ceny (w razie ręcznej zmiany ilości poniżej progu ceny, choć minQuantity powinno to pokryć)
+    let isMinPriceApplied = false;
+    if (quantity > 0 && totalPrice < MIN_ORDER_PRICE_GROSS) {
+        totalPrice = MIN_ORDER_PRICE_GROSS;
+        isMinPriceApplied = true;
+    }
+
     const unitPrice = quantity > 0 ? totalPrice / quantity : 0;
+    const isBelowMinimum = quantity < minQuantity;
+    const missingPieces = Math.max(0, minQuantity - quantity);
+
+    // Walidacja
+    const rawRatio = width && height ? width / height : 0;
+    const isRatioOk = rawRatio >= 0.2 && rawRatio <= 5.0; 
+    const isSizeOk = width >= 10 && height >= 10; 
+    const isCustomShape = shape === 'custom';
+    const aspectRatioDisplay = rawRatio > 0 ? rawRatio.toFixed(2) : '-';
+
+    const canProceedStandard = isRatioOk && isSizeOk && !isCustomShape && quantity > 0 && !isBelowMinimum;
+    const canSendCustomRequest = ((!isRatioOk && isSizeOk) || isCustomShape) && contactEmail.includes('@') && contactFile !== null;
+
 
     const handleAction = () => {
         if (canProceedStandard) {
@@ -200,9 +227,12 @@ const StickerConfigurator: React.FC<StickerConfiguratorProps> = ({ onConfirm }) 
             if (roundedCorners && (shape === 'rect' || shape === 'square')) {
                 desc += ' Zaokrąglone rogi.';
             }
+            if (isMinPriceApplied) {
+                desc += ' (Zastosowano minimalną wartość zamówienia).';
+            }
             
-            // Przygotowanie obiektu konfiguracyjnego dla edytora
             const configData: EditorConfig = {
+                productName: 'Naklejki samoprzylepne',
                 width,
                 height,
                 shape: shape === 'circle' ? 'circle' : (shape === 'square' ? 'square' : 'rect'),
@@ -213,7 +243,6 @@ const StickerConfigurator: React.FC<StickerConfiguratorProps> = ({ onConfirm }) 
                 description: desc
             };
 
-            // Przekazanie do rodzica (App.tsx)
             if (onConfirm) {
                 onConfirm(configData);
             }
@@ -230,7 +259,6 @@ const StickerConfigurator: React.FC<StickerConfiguratorProps> = ({ onConfirm }) 
 
     return (
         <section className="py-10 bg-slate-50 min-h-[800px] flex flex-col font-sans animate-in fade-in duration-500">
-            {/* Header section similar to LabelConfigurator */}
              <div className="text-center mb-8">
                 <span className="text-brand-accent font-bold tracking-wider uppercase text-sm">Personalizacja</span>
                 <h2 className="text-3xl font-bold text-gray-900 mt-2">
@@ -330,16 +358,29 @@ const StickerConfigurator: React.FC<StickerConfiguratorProps> = ({ onConfirm }) 
                                 {!isCustomShape && (
                                     <>
                                         <div className="flex justify-between items-start mb-2">
-                                            {!isRatioOk ? (
-                                                <div className="flex items-center gap-2">
-                                                    <h4 className="text-sm font-bold text-orange-800">
-                                                        Niestandardowe proporcje
-                                                    </h4>
-                                                    <AlertTriangle size={16} className="text-orange-600"/>
-                                                </div>
-                                            ) : (
-                                                <div></div> 
-                                            )}
+                                            {/* PROPORCJE - SEKCJA OSTRZEGAWCZA */}
+                                            <div>
+                                                {!isRatioOk ? (
+                                                    <div>
+                                                        <div className="flex items-center gap-2">
+                                                            <h4 className="text-sm font-bold text-orange-800">
+                                                                Niestandardowe proporcje
+                                                            </h4>
+                                                            <AlertTriangle size={16} className="text-orange-600"/>
+                                                        </div>
+                                                        <p className="text-[10px] text-orange-700 mt-0.5">
+                                                            Wymagane: 0.2 - 5.0 (szer./wys.)
+                                                        </p>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-center gap-2">
+                                                        <h4 className="text-sm font-bold text-gray-500">
+                                                            Proporcje kształtu
+                                                        </h4>
+                                                        <Info size={14} className="text-gray-400"/>
+                                                    </div>
+                                                )}
+                                            </div>
                                             <span className={`text-lg font-extrabold ${canProceedStandard || isBelowMinimum ? 'text-brand-accent' : 'text-orange-600'}`}>{aspectRatioDisplay}</span>
                                         </div>
                                     </>
@@ -573,16 +614,23 @@ const StickerConfigurator: React.FC<StickerConfiguratorProps> = ({ onConfirm }) 
                             </div>
 
                             {/* Informacja o cenie i ilości */}
-                            <div className={`text-xs text-gray-500 mb-4 p-3 rounded-lg border ${isBelowMinimum ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-100'}`}>
-                                <div className="flex justify-between mb-1">
-                                    <span>Powierzchnia:</span>
-                                    <span className={`font-medium ${isBelowMinimum ? 'text-orange-700' : ''}`}>{totalAreaM2.toFixed(2)} m²</span>
-                                </div>
+                            <div className={`text-xs text-gray-500 mb-4 p-3 rounded-lg border ${isBelowMinimum || isMinPriceApplied ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-100'}`}>
                                 {isBelowMinimum && (
-                                    <div className="mt-2 text-orange-600 font-bold border-t border-orange-200 pt-2 animate-pulse">
-                                        <div className="flex items-center gap-1 mb-1"><AlertTriangle size={12}/> Min. 1m² ({minQuantity} szt.)</div>
-                                        <div className="text-orange-800">Brakuje: {missingPieces} szt.</div>
+                                    <div className="text-orange-600 font-bold animate-pulse">
+                                        <div className="flex items-center gap-1 mb-1"><AlertTriangle size={12}/> Zbyt mała ilość</div>
+                                        <div className="text-orange-800">Minimum to: {minQuantity} szt.</div>
                                     </div>
+                                )}
+                                {isMinPriceApplied && !isBelowMinimum && (
+                                    <div className="text-orange-600 font-bold">
+                                        <div className="flex items-center gap-1 mb-1"><Info size={12}/> Min. wartość: {MIN_ORDER_PRICE_NETTO} zł netto</div>
+                                        <div className="text-orange-800 text-[10px] leading-tight">Cena została podniesiona do minimum produkcyjnego.</div>
+                                    </div>
+                                )}
+                                {!isBelowMinimum && !isMinPriceApplied && (
+                                     <div className="flex items-center gap-1 text-green-600 font-medium">
+                                        <CheckCircle2 size={14} /> Zamówienie spełnia minima.
+                                     </div>
                                 )}
                             </div>
 
